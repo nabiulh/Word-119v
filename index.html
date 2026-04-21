@@ -491,7 +491,7 @@
                     <button onclick="document.getElementById('imageUploadInput').click()" class="toolbar-btn-light bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-800 shadow-sm" title="Insert Photo">
                         <i class="fa-solid fa-image"></i> <span class="hidden xl:inline ml-1 font-bold">Photo</span>
                     </button>
-                    <input type="file" id="imageUploadInput" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
+                    <input type="file" id="imageUploadInput" accept="image/*" multiple style="display: none;" onchange="handleImageUpload(event)">
                     
                     <button onclick="applyAutoBold()" class="toolbar-btn-light bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 dark:bg-purple-900/50 dark:text-purple-300 dark:border-purple-800 shadow-sm" title="Auto-bold headings and points">
                         <i class="fa-solid fa-heading"></i> <span class="hidden xl:inline ml-1 font-bold">Auto Bold</span>
@@ -1303,52 +1303,80 @@
         };
 
         // ================= IMAGE OVERLAY LOGIC =================
-        window.handleImageUpload = function(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+        window.handleImageUpload = async function(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'free-image-wrapper active';
-                wrapper.contentEditable = "false"; 
-                wrapper.style.left = '10%'; 
-                wrapper.style.top = '10%';
-                wrapper.style.transform = 'rotate(0deg)';
-                
-                const img = document.createElement('img');
-                img.src = e.target.result;
-                img.className = 'free-image';
-                img.style.width = '150px';
+            showToast(`Processing ${files.length} photo(s)...`);
+            const editor = document.getElementById('inputText');
+            // Calculate safe width for the image to fill the page
+            const safeWidth = (editor.clientWidth || 700) - 20;
 
-                const toolbar = document.createElement('div');
-                toolbar.className = 'img-toolbar';
-                toolbar.innerHTML = `
-                    <button onclick="toggleImageBorder(this)" title="Border"><i class="fa-solid fa-border-all"></i></button>
-                    <button onclick="deleteImage(this)" title="Delete" style="color:#ef4444;"><i class="fa-solid fa-trash"></i></button>
-                `;
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'free-image-wrapper active';
+                        wrapper.contentEditable = "false"; 
+                        // Make it flow and stack automatically like PDF pages
+                        wrapper.style.position = 'relative';
+                        wrapper.style.display = 'block'; 
+                        wrapper.style.margin = '12mm auto 5mm auto';
+                        wrapper.style.pageBreakInside = 'avoid';
+                        wrapper.style.textAlign = 'center';
+                        wrapper.style.left = '0px'; 
+                        wrapper.style.top = '0px';
+                        wrapper.style.transform = 'rotate(0deg)';
+                        
+                        // Inner container ensures handles stick to the corners perfectly
+                        const innerContainer = document.createElement('div');
+                        innerContainer.style.position = 'relative';
+                        innerContainer.style.display = 'inline-block';
 
-                const resizeHandle = document.createElement('div');
-                resizeHandle.className = 'img-handle resize-handle';
-                
-                const rotateHandle = document.createElement('div');
-                rotateHandle.className = 'img-handle rotate-handle';
-                
-                const rotateLine = document.createElement('div');
-                rotateLine.className = 'rotate-line';
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.className = 'free-image';
+                        img.style.width = safeWidth + 'px';
+                        img.style.height = 'auto';
+                        img.style.maxWidth = '100%';
+                        img.style.maxHeight = '245mm'; // Keep inside page boundaries by default
+                        img.style.display = 'block';
+                        img.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
 
-                wrapper.appendChild(toolbar);
-                wrapper.appendChild(img);
-                wrapper.appendChild(resizeHandle);
-                wrapper.appendChild(rotateLine);
-                wrapper.appendChild(rotateHandle);
-                
-                document.getElementById('inputText').appendChild(wrapper);
-                
-                updateContent();
-                showToast("Photo inserted! Drag to move, use handles to resize/rotate.");
-            };
-            reader.readAsDataURL(file);
+                        const toolbar = document.createElement('div');
+                        toolbar.className = 'img-toolbar';
+                        toolbar.innerHTML = `
+                            <button onclick="toggleImageBorder(this)" title="Border"><i class="fa-solid fa-border-all"></i></button>
+                            <button onclick="deleteImage(this)" title="Delete" style="color:#ef4444;"><i class="fa-solid fa-trash"></i></button>
+                        `;
+
+                        const resizeHandle = document.createElement('div');
+                        resizeHandle.className = 'img-handle resize-handle';
+                        
+                        const rotateHandle = document.createElement('div');
+                        rotateHandle.className = 'img-handle rotate-handle';
+                        
+                        const rotateLine = document.createElement('div');
+                        rotateLine.className = 'rotate-line';
+
+                        innerContainer.appendChild(toolbar);
+                        innerContainer.appendChild(img);
+                        innerContainer.appendChild(resizeHandle);
+                        innerContainer.appendChild(rotateLine);
+                        innerContainer.appendChild(rotateHandle);
+
+                        wrapper.appendChild(innerContainer);
+                        editor.appendChild(wrapper);
+                        resolve();
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+            
+            updateContent();
+            showToast(`${files.length} photo(s) inserted successfully!`);
             event.target.value = ''; 
         };
 
@@ -1366,7 +1394,7 @@
 
         let activeImgAction = null;
         let currentImgWrapper = null;
-        let imgStartX, imgStartY, initLeft, initTop, initWidth, initAngle, imgCx, imgCy;
+        let imgStartX, imgStartY, initLeft, initTop, initWidth, initHeight, initAngle, imgCx, imgCy;
 
         function getEventCoords(e) {
             if (e.touches && e.touches.length > 0) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -1407,7 +1435,15 @@
                     currentImgWrapper = wrapper;
                     const coords = getEventCoords(e);
                     imgStartX = coords.x;
+                    imgStartY = coords.y; // track Y for full stretch
+                    const img = currentImgWrapper.querySelector('.free-image');
+                    
+                    // Remove constraints so the user can stretch beyond page limits freely
+                    img.style.maxWidth = 'none';
+                    img.style.maxHeight = 'none';
+                    
                     initWidth = parseFloat(document.defaultView.getComputedStyle(img).width);
+                    initHeight = parseFloat(document.defaultView.getComputedStyle(img).height);
                 };
                 resizer.addEventListener('mousedown', startResize);
                 resizer.addEventListener('touchstart', startResize, {passive: false});
@@ -1438,6 +1474,7 @@
             } else if (activeImgAction === 'resize') {
                 const img = currentImgWrapper.querySelector('.free-image');
                 img.style.width = Math.max(30, initWidth + (coords.x - imgStartX)) + 'px';
+                img.style.height = Math.max(30, initHeight + (coords.y - imgStartY)) + 'px';
             } else if (activeImgAction === 'rotate') {
                 const angle = Math.atan2(coords.y - imgCy, coords.x - imgCx) * (180 / Math.PI);
                 currentImgWrapper.style.transform = "rotate(" + (angle + 90) + "deg)";
