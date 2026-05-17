@@ -553,8 +553,8 @@
                     <button onclick="autoFixGrammar()" class="toolbar-btn-light bg-green-50 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800 shadow-sm" title="Auto-fix spaces and punctuation">
                         <i class="fa-solid fa-wand-magic-sparkles"></i> <span class="hidden xl:inline ml-1 font-bold">Auto Fix</span>
                     </button>
-                    <button onclick="applyAutoColor()" class="toolbar-btn-light bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 dark:bg-orange-900/50 dark:text-orange-300 dark:border-orange-800 shadow-sm" title="Auto color bold, italic, and header texts beautifully">
-                        <i class="fa-solid fa-palette"></i> <span class="hidden xl:inline ml-1 font-bold">Auto Color</span>
+                    <button id="autoColorToggleBtn" class="toolbar-btn-light bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200 dark:bg-orange-900/80 dark:text-orange-300 dark:border-orange-700 shadow-sm" title="Auto color bold, italic, and header texts beautifully">
+                        <i class="fa-solid fa-palette"></i> <span class="hidden xl:inline ml-1 font-bold">Auto Color <span id="autoColorStatus">ON</span></span>
                     </button>
                     <button onclick="clearText()" class="toolbar-btn-light bg-red-50 text-red-600 border-red-200 hover:bg-red-100 dark:bg-red-900/40 dark:text-red-400 dark:border-red-800 shadow-sm" title="Clear all text">
                         <i class="fa-solid fa-trash-can"></i>
@@ -704,6 +704,7 @@
         let currentMargin = { t: 10, r: 10, b: 15, l: 10 }; 
         let isWatermarkActive = true; 
         let isPageNumActive = true; 
+        let isAutoColorActive = true;
 
         // ================= WATERMARK PRE-LOADER FOR PDF =================
         let watermarkBase64 = null;
@@ -786,6 +787,9 @@
 
         const pageNumToggleBtn = document.getElementById('pageNumToggle');
         const pageNumStatusSpan = document.getElementById('pageNumStatus');
+        
+        const autoColorToggleBtn = document.getElementById('autoColorToggleBtn');
+        const autoColorStatusSpan = document.getElementById('autoColorStatus');
 
         const editorScreen = document.getElementById('editor-screen');
         const previewScreen = document.getElementById('preview-screen');
@@ -1012,7 +1016,7 @@
         }
 
         // ================= NEW: AUTO COLOR LOGIC =================
-        function applyAutoColor() {
+        function applyAutoColorLogic() {
             const editor = document.getElementById('inputText');
             
             // Apply beautiful dynamic deep colors to Bold/Headings texts based on category
@@ -1058,10 +1062,24 @@
                 const date = header.querySelector('.headerDate');
                 if(date) date.style.color = '#993300'; // Deep Brown/Orange
             });
-
-            updateContent();
-            showToast("Smart Auto Color Magic Applied!");
         }
+
+        autoColorToggleBtn.addEventListener('click', () => {
+            isAutoColorActive = !isAutoColorActive;
+            if(isAutoColorActive) {
+                autoColorStatusSpan.innerText = 'ON';
+                autoColorToggleBtn.classList.remove('bg-orange-50', 'border-orange-200', 'dark:bg-orange-900/50', 'dark:border-orange-800');
+                autoColorToggleBtn.classList.add('bg-orange-100', 'border-orange-300', 'dark:bg-orange-900/80', 'dark:border-orange-700');
+                updateContent();
+                showToast("Auto Color Enabled!");
+            } else {
+                autoColorStatusSpan.innerText = 'OFF';
+                autoColorToggleBtn.classList.remove('bg-orange-100', 'border-orange-300', 'dark:bg-orange-900/80', 'dark:border-orange-700');
+                autoColorToggleBtn.classList.add('bg-orange-50', 'border-orange-200', 'dark:bg-orange-900/50', 'dark:border-orange-800');
+                showToast("Auto Color Disabled!");
+            }
+            saveSettings();
+        });
 
         function clearText() {
             if(confirm("Are you sure you want to delete all text? You can save it in history before deleting.")) {
@@ -1279,6 +1297,9 @@
         }
 
         function updateContent() {
+            if (isAutoColorActive) {
+                applyAutoColorLogic();
+            }
             formattedContent.innerHTML = inputText.innerHTML;
 
             clearTimeout(historySaveTimeout);
@@ -1828,7 +1849,8 @@
                 isTwoColumn: formattedContent.classList.contains('two-columns'),
                 headerState: headerState,
                 isWatermarkActive: isWatermarkActive,
-                isPageNumActive: isPageNumActive
+                isPageNumActive: isPageNumActive,
+                isAutoColorActive: isAutoColorActive
             };
             localStorage.setItem('wordProSettings', JSON.stringify(settings));
         }
@@ -1880,6 +1902,10 @@
                 if (saved.isPageNumActive !== isPageNumActive) pageNumToggleBtn.click();
             }
             
+            if (saved.isAutoColorActive !== undefined) {
+                if (saved.isAutoColorActive !== isAutoColorActive) autoColorToggleBtn.click();
+            }
+            
             isRestoringSettings = false; // Re-enable toasts
         }
 
@@ -1896,7 +1922,7 @@
                 });
 
                 // Bind click events to all toggles with a slight delay to ensure UI states updated before saving
-                const toggles = ['themeToggle', 'columnToggle', 'headerToggle', 'watermarkToggle', 'pageNumToggle'];
+                const toggles = ['themeToggle', 'columnToggle', 'headerToggle', 'watermarkToggle', 'pageNumToggle', 'autoColorToggleBtn'];
                 toggles.forEach(id => {
                     const el = document.getElementById(id);
                     if(el) el.addEventListener('click', () => setTimeout(saveSettings, 50));
